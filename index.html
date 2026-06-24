@@ -8,74 +8,19 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
 <style>
-  :root {
-    --bg: #FBF9F5;
-    --ink: #2B2723;
-    --ink-soft: #6B645B;
-    --ink-faint: #A39C90;
-    --clay: #C77B54;
-    --clay-deep: #A35E3B;
-    --sage: #7A8B6F;
-    --cold: #D8D2C6;
-    --line: #E8E2D6;
-    --serif: 'Fraunces', Georgia, serif;
-    --sans: 'Inter', system-ui, sans-serif;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
-  body {
-    background: var(--bg);
-    color: var(--ink);
-    font-family: var(--sans);
-    line-height: 1.6;
-    -webkit-font-smoothing: antialiased;
-  }
-  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  #root { width: 100%; overflow-x: hidden; }
-  ::selection { background: rgba(199,123,84,0.18); }
+  :root { --bg:#FBF9F5; --ink:#2B2723; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html { scroll-behavior:smooth; }
+  body { background:var(--bg); color:var(--ink); font-family:'Inter',system-ui,sans-serif; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  #root { width:100%; overflow-x:hidden; }
+  ::selection { background:rgba(199,123,84,0.18); }
 </style>
 </head>
 <body>
 <div id="root"></div>
-
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-<script>
-// ---- PARSER (inlined, browser-only) ----
-const PHONE_RE = /\+?\d[\d\s\-]{7,}\d/;
-const SWITCH_RE = /whatsapp|instagram|\binsta\b|\bsnap\b|my number|exchange numbers|@\w+/i;
-function sortedMessages(t){return (t.chats||[]).filter(c=>c&&c.body).slice().sort((a,b)=>(a.timestamp||"").localeCompare(b.timestamp||""));}
-function isRealMatch(t){return Object.prototype.hasOwnProperty.call(t,"match");}
-function metAt(t){return (t.we_met||[]).some(w=>w.did_meet_subject==="Yes");}
-function escalated(x){return PHONE_RE.test(x)||SWITCH_RE.test(x);}
-function outcomeOf(t){const m=sortedMessages(t);const x=m.map(z=>z.body).join(" ");if(metAt(t))return"met";if(escalated(x))return"escalated";return"cold";}
-function analyze(raw){
-  if(!Array.isArray(raw)) throw new Error("That file doesn't look like a Hinge matches export.");
-  const likes=raw.filter(t=>!isRealMatch(t)).length;
-  const matches=raw.filter(isRealMatch);
-  const convos=matches.filter(m=>sortedMessages(m).length>0);
-  let met=0,esc=0,cold=0,tY=0,tN=0,total=0;
-  const lens=[],hours=new Array(24).fill(0);
-  for(const m of matches){const o=outcomeOf(m);
-    if(o==="met"){met++;for(const w of (m.we_met||[])){if(w.was_my_type===true)tY++;else if(w.was_my_type===false)tN++;}}
-    else if(o==="escalated")esc++;else cold++;}
-  for(const m of convos){const ms=sortedMessages(m);lens.push(ms.length);total+=ms.length;
-    for(const z of ms){const h=parseInt((z.timestamp||"").slice(11,13),10);if(!isNaN(h))hours[h]++;}}
-  lens.sort((a,b)=>a-b);
-  const median=lens.length?lens[Math.floor(lens.length/2)]:0;
-  const milestones=[1,2,4,8,16,32,64];
-  const survival=milestones.map(n=>({n,pct:convos.length?Math.round(lens.filter(l=>l>=n).length/convos.length*100):0}));
-  return {
-    funnel:{likes,matches:matches.length,conversations:convos.length,reached:esc+met,dates:met,myType:tY},
-    outcomes:{met,escalated:esc,cold},
-    fit:{myType:tY,notMyType:tN},
-    conversation:{count:convos.length,median,longest:lens.length?lens[lens.length-1]:0,totalMessages:total,survival,hours}
-  };
-}
-window.__analyze = analyze;
-</script>
-
+<script src="./analysis.js"></script>
 <script src="./sampleData.global.js"></script>
 <script src="./app.js"></script>
 </body>
