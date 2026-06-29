@@ -328,6 +328,106 @@ function Spine() {
   );
 }
 
+// ---------- section 10: what clicked vs what didn't ----------
+function CompareBar({ label, clickedVal, fizzledVal, clickedLabel, fizzledLabel }) {
+  const max = Math.max(clickedVal, fizzledVal, 1);
+  return React.createElement("div", { style: { marginBottom: "2rem" } },
+    React.createElement("div", { style: { fontSize: "0.85rem", color: C.inkSoft, marginBottom: 10, textAlign: "center" } }, label),
+    React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10 } },
+      [["Clicked", clickedVal, clickedLabel, C.sage], ["Fizzled", fizzledVal, fizzledLabel, C.cold]].map((row, i) =>
+        React.createElement("div", { key: i, style: { display: "flex", alignItems: "center", gap: 12 } },
+          React.createElement("div", { style: { flex: "0 0 64px", fontSize: "0.8rem", color: C.inkSoft, textAlign: "right" } }, row[0]),
+          React.createElement(GrowBar, { w: (row[1] / max) * 100, color: row[3], delay: i * 0.15 }),
+          React.createElement("div", { style: { flex: "0 0 80px", fontFamily: serif, fontSize: "1.1rem", color: row[3] === C.sage ? C.clayDeep : C.inkSoft } }, row[2])))
+    )
+  );
+}
+function GrowBar({ w, color, delay }) {
+  const [g, setG] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setG(true), 150 + delay * 1000); return () => clearTimeout(t); }, []);
+  return React.createElement("div", { style: { flex: 1, height: 28, background: "rgba(0,0,0,0.03)", borderRadius: 5, overflow: "hidden" } },
+    React.createElement("div", { style: { height: "100%", width: g ? `${Math.max(4, w)}%` : 0, background: color, borderRadius: 5, transition: "width .9s cubic-bezier(.22,1,.36,1)" } }));
+}
+
+function Contrast({ c }) {
+  const [mode, setMode] = useState("middle"); // middle | strict
+  if (!c || c.clicked.n < 2) {
+    return React.createElement(Section, { kicker: "What clicked vs what didn't", bg: "#fff" },
+      React.createElement(Hero, { big: "Not enough confirmed dates to compare yet.",
+        sub: "This section compares the threads you marked as dates against ones that fizzled — it needs a handful of confirmed dates." }));
+  }
+  const fizzled = mode === "middle" ? c.fizzledMiddle : c.fizzledStrict;
+  if (fizzled.n < 2) {
+    return React.createElement(Section, { kicker: "What clicked vs what didn't", bg: "#fff" },
+      React.createElement(Hero, { big: "Not enough fizzled threads to compare.", sub: "Try the other comparison group." }));
+  }
+
+  const toggle = React.createElement(Reveal, { delay: 0.05, style: { display: "flex", justifyContent: "center", marginBottom: "2.5rem" } },
+    React.createElement("div", { style: { display: "inline-flex", background: C.bg, borderRadius: 100, padding: 4, border: `1px solid ${C.line}` } },
+      [["middle", `Real conversations (${c.fizzledMiddle.n})`], ["strict", `Shortest 10`]].map((opt) =>
+        React.createElement("button", { key: opt[0], onClick: () => setMode(opt[0]),
+          style: { border: "none", cursor: "pointer", padding: "8px 18px", borderRadius: 100, fontSize: "0.85rem",
+            fontFamily: sans, background: mode === opt[0] ? C.ink : "transparent", color: mode === opt[0] ? "#fff" : C.inkSoft,
+            transition: "all .2s" } }, opt[1]))));
+
+  return React.createElement(Section, { kicker: "What clicked vs what didn't", bg: "#fff",
+    info: `"Clicked" = ${c.clicked.n} threads you logged as a date (we_met = Yes). "Fizzled" has two views you can toggle: "Real conversations" = all ${c.fizzledMiddle.n} threads that ran 4+ messages, talked, but never exchanged contact and ended in an unmatch — the fair comparison, since both groups genuinely got going. "Shortest 10" = the 10 briefest such threads, where the contrast is starker but less meaningful. Both come from a pool of ${c.talkedPoolSize} talked-but-went-nowhere threads. This is contrast, not cause: n is small, and a difference is something to notice, not proof of why.` },
+    React.createElement(Hero, { big: `Your dates ran ${c.clicked.medLen} messages. These fizzles ran ${fizzled.medLen}.`,
+      sub: `Across your confirmed dates, you reached a plan in a median of ${c.medDaysToPlan} days. Switch the comparison group below — watch how the story shifts.` }),
+    toggle,
+    React.createElement(Reveal, { delay: 0.1, style: { maxWidth: 520, margin: "0 auto" } },
+      React.createElement(CompareBar, { label: "Median messages per thread",
+        clickedVal: c.clicked.medLen, fizzledVal: fizzled.medLen,
+        clickedLabel: `${c.clicked.medLen} msgs`, fizzledLabel: `${fizzled.medLen} msgs` })
+    ),
+    fizzled.distinctWords.length > 0 && React.createElement(Reveal, { delay: 0.15, style: { marginTop: "1.5rem" } },
+      React.createElement("p", { style: { textAlign: "center", color: C.inkSoft, fontSize: "0.92rem", marginBottom: "1.25rem" } },
+        "Words that showed up more in the threads that clicked — what theme do you see?"),
+      React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", alignItems: "center" } },
+        fizzled.distinctWords.map((w, i) => {
+          const scale = 0.9 + (w.n / fizzled.distinctWords[0].n) * 1.3;
+          return React.createElement("span", { key: i, style: { fontFamily: serif, fontSize: `${scale}rem`,
+            color: i < 3 ? C.clayDeep : C.inkSoft } }, prettyWord(w.word));
+        }))
+    ),
+    c.examples.length > 0 && React.createElement(Reveal, { delay: 0.2, style: { marginTop: "3rem" } },
+      React.createElement("p", { style: { textAlign: "center", color: C.inkSoft, fontSize: "0.92rem", marginBottom: "1.25rem" } },
+        "A few of those threads, by shape only — no names, no words, just the pattern:"),
+      React.createElement("div", { style: { display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" } },
+        c.examples.map((ex, i) => React.createElement("div", { key: i, style: { background: C.bg, borderRadius: 12,
+          padding: "1.25rem 1.5rem", minWidth: 150, textAlign: "center" } },
+          React.createElement("div", { style: { fontFamily: serif, fontSize: "1.8rem", color: C.clayDeep } }, fmt(ex.messages)),
+          React.createElement("div", { style: { fontSize: "0.78rem", color: C.inkSoft, marginBottom: 8 } }, "messages"),
+          React.createElement("div", { style: { fontSize: "0.82rem", color: C.inkSoft } }, `${fmt(ex.words)} words`),
+          ex.daysToPlan != null && React.createElement("div", { style: { fontSize: "0.82rem", color: C.inkSoft } },
+            `plan in ${ex.daysToPlan} ${ex.daysToPlan === 1 ? "day" : "days"}`))))
+    )
+  );
+}
+
+// ---------- section 11: closing — hope & awareness ----------
+function Closing() {
+  return React.createElement("section", { style: { position: "relative", zIndex: 1, padding: "16vh 1.5rem 18vh" } },
+    React.createElement("div", { style: { maxWidth: 620, margin: "0 auto", textAlign: "center" } },
+      React.createElement(Reveal, null,
+        React.createElement("p", { style: { fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase",
+          color: C.inkFaint, marginBottom: "2rem" } }, "One last thing")),
+      React.createElement(Reveal, { delay: 0.1 },
+        React.createElement("h2", { style: { fontFamily: serif, fontWeight: 500, fontSize: "clamp(1.9rem, 5vw, 3rem)",
+          lineHeight: 1.15, letterSpacing: "-0.02em", marginBottom: "2rem" } },
+          "None of this is a verdict on you.")),
+      React.createElement(Reveal, { delay: 0.2 },
+        React.createElement("p", { style: { fontSize: "1.15rem", color: C.inkSoft, lineHeight: 1.7, marginBottom: "1.5rem" } },
+          "The algorithm was never yours to control. Who you saw, who saw you, what surfaced and when — that was decided elsewhere. You can't optimize your way out of a system you don't run.")),
+      React.createElement(Reveal, { delay: 0.3 },
+        React.createElement("p", { style: { fontSize: "1.15rem", color: C.ink, lineHeight: 1.7, fontFamily: serif } },
+          "But the pattern is yours to see. Where it clicked, where it didn't, and the shape of how you show up — that's the part you get to hold. A mirror, not a scoreboard.")),
+      React.createElement(Reveal, { delay: 0.4, style: { marginTop: "3rem" } },
+        React.createElement("div", { style: { width: 40, height: 2, background: C.clay, margin: "0 auto" } }))
+    )
+  );
+}
+
 // ---------- app ----------
 function App() {
   const [stage, setStage] = useState("explain"); // explain | upload | results
@@ -353,6 +453,8 @@ function App() {
     React.createElement(Words, { text: data.text }),
     React.createElement(Phrases, { text: data.text }),
     React.createElement(Openers, { text: data.text }),
+    React.createElement(Contrast, { c: data.contrast }),
+    React.createElement(Closing),
     React.createElement("footer", { style: { position: "relative", zIndex: 1, textAlign: "center",
       padding: "8vh 1.5rem 6vh", color: C.inkFaint, fontSize: "0.82rem" } },
       "Read entirely in your browser. Nothing was uploaded or stored.")

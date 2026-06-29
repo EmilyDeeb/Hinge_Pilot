@@ -155,7 +155,95 @@ function analyze(raw) {
       totalWords,
     },
     text: { topWords, topPhrases, topOpeners },
+    contrast: computeContrast(matches),
     monthsCovered: allMonths.length,
+  };
+}
+
+// ---- section 10: clicked vs fizzled ----
+function gapsMinutes(msgs) {
+  const ts = msgs.map((x) => new Date(x.timestamp)).filter((d) => !isNaN(d)).sort((a, b) => a - b);
+  const g = [];
+  for (let i = 1; i < ts.length; i++) g.push((ts[i] - ts[i - 1]) / 60000);
+  return g;
+}
+function median(arr) {
+  if (!arr.length) return null;
+  const s = [...arr].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+function fmtGap(min) {
+  if (min == null) return "—";
+  if (min < 90) return `${Math.round(min)} min`;
+  if (min < 60 * 36) return `${Math.round(min / 60)} hr`;
+  return `${Math.round(min / 1440)} days`;
+}
+function computeContrast(matches) {
+  const clicked = matches.filter((m) => (m.we_met || []).some((w) => w.did_meet_subject === "Yes"));
+  const talked = matches.filter((m) => {
+    const ms = sortedMessages(m);
+    const txt = ms.map((z) => z.body).join(" ");
+    return ms.length >= 2 && !reachedPlan(txt) && !(m.we_met || []).some((w) => w.did_meet_subject === "Yes")
+      && Object.prototype.hasOwnProperty.call(m, "block");
+  });
+  const bottom10 = [...talked].sort((a, b) => sortedMessages(a).length - sortedMessages(b).length).slice(0, 10);
+  const realFizzles = talked.filter((m) => sortedMessages(m).length >= 4);
+
+  function groupStats(group) {
+    const lens = group.map((m) => sortedMessages(m).length);
+    const allGaps = group.flatMap((m) => gapsMinutes(sortedMessages(m)));
+    const wc = {};
+    for (const m of group) for (const w of tokenize(sortedMessages(m).map((x) => x.body).join(" "))) wc[w] = (wc[w] || 0) + 1;
+    return { n: group.length, medLen: median(lens), medGap: median(allGaps), words: wc };
+  }
+  const A = groupStats(clicked);
+
+  function buildFizzled(group, clickedWords) {
+    const G = groupStats(group);
+    const distinct = Object.entries(clickedWords)
+      .filter(([w, c]) => c >= 4 && (clickedWords[w] || 0) > (G.words[w] || 0))
+      .sort((a, b) => b[1] - a[1]).slice(0, 12).map(([word, n]) => ({ word, n }));
+    return {
+      n: G.n, medLen: G.medLen, medGap: G.medGap, medGapLabel: fmtGap(G.medGap),
+      distinctWords: distinct,
+    };
+  }
+
+  // days from match -> first plan/number, for clicked group
+  const daysToPlan = [];
+  for (const m of clicked) {
+    const ms = sortedMessages(m);
+    const matchTs = (m.match || [])[0] && (m.match || [])[0].timestamp;
+    let planTs = null;
+    for (const x of ms) if (reachedPlan(x.body)) { planTs = x.timestamp; break; }
+    if (planTs && matchTs) {
+      const d = (new Date(planTs) - new Date(matchTs)) / 86400000;
+      if (d >= 0) daysToPlan.push(Math.round(d * 10) / 10);
+    }
+  }
+
+  // anonymized example shapes (clicked), sorted by length desc, top 3
+  const examples = clicked.map((m) => {
+    const ms = sortedMessages(m);
+    const matchTs = (m.match || [])[0] && (m.match || [])[0].timestamp;
+    let planTs = null;
+    for (const x of ms) if (reachedPlan(x.body)) { planTs = x.timestamp; break; }
+    const dtp = (planTs && matchTs) ? Math.round((new Date(planTs) - new Date(matchTs)) / 86400000 * 10) / 10 : null;
+    return {
+      messages: ms.length,
+      words: ms.reduce((a, z) => a + (z.body.split(/\s+/).length), 0),
+      gap: median(gapsMinutes(ms)),
+      daysToPlan: dtp,
+    };
+  }).sort((a, b) => b.messages - a.messages).slice(0, 3);
+
+  return {
+    clicked: { n: A.n, medLen: A.medLen, medGap: A.medGap, medGapLabel: fmtGap(A.medGap) },
+    fizzledStrict: buildFizzled(bottom10, A.words),
+    fizzledMiddle: buildFizzled(realFizzles, A.words),
+    medDaysToPlan: median(daysToPlan),
+    examples,
+    talkedPoolSize: talked.length,
   };
 }
 
